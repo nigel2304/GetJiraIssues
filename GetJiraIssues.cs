@@ -1,6 +1,5 @@
 ﻿using System.Data;
-using System.Text.Encodings.Web;
-using System.Text.Json;
+using Newtonsoft.Json;
 using static IssuesJiraModel;
 
 namespace GetJiraIssues
@@ -13,27 +12,33 @@ namespace GetJiraIssues
             {
                 var fileNameDirecotry = AppDomain.CurrentDomain.BaseDirectory + "GetJiraIssue.json";
 
+                Console.WriteLine("Insira o login: ");
+                var userName = Console.ReadLine();
+
+                Console.WriteLine("Insira o acces token: ");
+                var accessToken = Console.ReadLine();
+
                 Console.WriteLine("Digite o id do projeto: ");
-                string projectId = Console.ReadLine();
+                var projectId = Console.ReadLine();
 
                 Console.WriteLine("Digite o número máximo de registro a retornar: ");
-                string maxResults = Console.ReadLine();
+                var maxResults = Console.ReadLine();
 
-                if (string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(maxResults))
-                   throw new Exception("Projeto e/ou número máximo de registros não podem ser vazios");
+                if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(maxResults))
+                   throw new Exception("Login, access token, projeto e/ou número máximo de registros não podem ser vazios");
 
                 string URL = "https://nilteam.atlassian.net/rest/api/3/search?jql=" + 
                             "project=" + projectId + " and status!=Backlog" +
                             "&maxResults=" + maxResults +
-                            "&expand=changelog&fields=summary,issuetype";
+                            "&expand=changelog&fields=summary,issuetype,assignee,resolutiondate";
 
                 Console.WriteLine("Carregando issues...");
                 Console.WriteLine();
 
                 // Get response body by jira                  
                 var formartterHttpClient = new FormartterHttpClient();
-                var responseString = formartterHttpClient.GenerateResponseJira(URL);
-                var issuesJira = JsonSerializer.Deserialize<IssuesJira>(responseString);
+                var responseString = formartterHttpClient.GenerateResponseJira(URL, userName, accessToken);
+                var issuesJira = JsonConvert.DeserializeObject<IssuesJira>(responseString);
 
                 if (issuesJira == null || issuesJira.issues == null)
                     throw new Exception("Objects is null");
@@ -46,16 +51,10 @@ namespace GetJiraIssues
 
                 var issuesResultList = new FormatterIssuesJira().GetIssuesResult(issuesJira).Where(x => x.IssuesResultHistories.Count() > 0).OrderBy(x => x.Id);
 
-                var jsonSerializerOptions = new JsonSerializerOptions
-                {
-                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                    WriteIndented = true,
-                };
-
                 Console.WriteLine("Salvando arquivos json com históricos de issues...");
                 Console.WriteLine();
                 
-                var issuesResultListJson = JsonSerializer.Serialize(issuesResultList, jsonSerializerOptions);
+                var issuesResultListJson = JsonConvert.SerializeObject(issuesResultList);
                 File.WriteAllText(fileNameDirecotry, issuesResultListJson);
 
                 Console.WriteLine("Seu arquivo foi gerado com sucesso. Digite qualquer tecla para sair!!!");
