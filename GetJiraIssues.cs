@@ -21,6 +21,9 @@ namespace GetJiraIssues
                 Console.WriteLine("Insira o acces token: ");
                 var accessToken = Console.ReadLine();
 
+                Console.WriteLine("Insira sua url do Jira: ");
+                var urlJira = Console.ReadLine();
+
                 Console.WriteLine("Digite o id do projeto: ");
                 var projectId = Console.ReadLine();
 
@@ -30,11 +33,10 @@ namespace GetJiraIssues
                 if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(maxResults))
                    throw new Exception("Login, access token, projeto e/ou número máximo de registros não podem ser vazios");
 
-                //Url jira rest api and jql to search
-                string URL = "https://nilteam.atlassian.net/rest/api/3/search?jql=" + 
-                            "project=" + projectId + " and status!=Backlog" +
-                            "&maxResults=" + maxResults +
-                            "&expand=changelog&fields=summary,issuetype,assignee,resolutiondate";
+                var authenticationString = $"{userName}:{accessToken}";
+
+                //Url jira rest api and jql to search - this jql get issues specific project and status diff Backlog
+                string URL = $"{urlJira}/rest/api/3/search?jql=project={projectId} and status!=Backlog&maxResults={maxResults}&expand=changelog&fields=summary,issuetype,assignee,resolutiondate";
 
                 Console.WriteLine("Carregando issues...");
                 Console.WriteLine();
