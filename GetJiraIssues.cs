@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Xml.Serialization;
 using Newtonsoft.Json;
 using static IssuesJiraModel;
 
@@ -10,7 +11,9 @@ namespace GetJiraIssues
         {
             try
             {
-                var fileNameDirecotry = AppDomain.CurrentDomain.BaseDirectory + "GetJiraIssue.json";
+                var baseDirecotry = AppDomain.CurrentDomain.BaseDirectory;
+                var fileNameDirecotryJson = baseDirecotry + "JiraIssuesHistory.json";
+                var fileNameDirecotryXml = baseDirecotry + "JiraIssuesHistory.xml";
 
                 Console.WriteLine("Insira o login: ");
                 var userName = Console.ReadLine();
@@ -27,6 +30,7 @@ namespace GetJiraIssues
                 if (string.IsNullOrEmpty(userName) || string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(projectId) || string.IsNullOrEmpty(maxResults))
                    throw new Exception("Login, access token, projeto e/ou número máximo de registros não podem ser vazios");
 
+                //Url jira rest api and jql to search
                 string URL = "https://nilteam.atlassian.net/rest/api/3/search?jql=" + 
                             "project=" + projectId + " and status!=Backlog" +
                             "&maxResults=" + maxResults +
@@ -49,13 +53,21 @@ namespace GetJiraIssues
                 Console.WriteLine("Preparando históricos de issues...");
                 Console.WriteLine();
 
+                //Formatt status history issues
                 var issuesResultList = new FormatterIssuesJira().GetIssuesResult(issuesJira).Where(x => x.IssuesResultHistories.Count() > 0).OrderBy(x => x.Id);
 
-                Console.WriteLine("Salvando arquivos json com históricos de issues...");
+                Console.WriteLine("Salvando arquivos json/xml com históricos de issues...");
                 Console.WriteLine();
                 
+                //Create and save json file formatted
                 var issuesResultListJson = JsonConvert.SerializeObject(issuesResultList);
-                File.WriteAllText(fileNameDirecotry, issuesResultListJson);
+                File.WriteAllText(fileNameDirecotryJson, issuesResultListJson);
+
+                //Create and save xml file formatted
+                var streamFileXml = new FileStream(fileNameDirecotryXml, FileMode.Create);
+                var issuesResultListXml = new XmlSerializer(issuesResultList.ToList().GetType());
+                issuesResultListXml.Serialize(streamFileXml, issuesResultList.ToList());
+                streamFileXml.Close();
 
                 Console.WriteLine("Seu arquivo foi gerado com sucesso. Digite qualquer tecla para sair!!!");
                 Console.ReadLine();
