@@ -24,6 +24,9 @@ public class FormatterIssuesJira
         return itemIssuesChangelogHistoriesFiltered.FirstOrDefault()?.items.FirstOrDefault()?.toString;
     }
 
+    // Return issues that change status
+    Func<Items, bool> transictionStatus = x => x.field == _STATUS && x.fromString != x.toString;
+
     // Format body return by jira at struct object
     public List<IssuesResult> GetIssuesResult(IssuesJira issuesJira)
     {
@@ -46,21 +49,21 @@ public class FormatterIssuesJira
             if (itemIssues == null)
                 continue;
 
-            string dateChangeStatusOld = "0";
+            string dateChangeStatusOld = string.Empty;
 
             // Build history status issue and cycletimes
-            var itemIssuesChangelogHistoriesFiltered = itemIssuesChangelogHistories.Where(x => x.items.Any(x => x.field == _STATUS && x.fromString != x.toString));
+            var itemIssuesChangelogHistoriesFiltered = itemIssuesChangelogHistories.Where(x => x.items.Any(transictionStatus));
             foreach (var itemHistories in itemIssuesChangelogHistoriesFiltered)
             {
                 
                 //Get only items with status diff    
-                var itemsStatus = itemHistories?.items.Where(x => x.field == _STATUS && x.fromString != x.toString);
+                var itemsStatus = itemHistories?.items.Where(transictionStatus);
                 if (itemsStatus == null || itemsStatus.Count() == 0)
                     continue;
 
                 // Prepare dates to calculate cycletimes
                 var dateChangeStatus = DateTime.SpecifyKind(Convert.ToDateTime(itemHistories?.created), DateTimeKind.Utc);
-                var dateFrom = (dateChangeStatusOld != "0") ? Convert.ToDateTime(dateChangeStatusOld) : DateTime.MinValue;
+                var dateFrom = !string.IsNullOrEmpty(dateChangeStatusOld) ? Convert.ToDateTime(dateChangeStatusOld) : DateTime.MinValue;
                 var dateTo = Convert.ToDateTime(dateChangeStatus.ToString(_FORMATDATE));
 
                 //Set object to issues history and calculate cycletimes
