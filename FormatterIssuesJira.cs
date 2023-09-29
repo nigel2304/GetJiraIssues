@@ -6,8 +6,14 @@ public class FormatterIssuesJira
     const string _SPRINT = "Sprint";
     const string _FORMATDATE = "yyyy-MM-dd";
 
+    // Return issues that change status
+    Func<Items, bool> transictionStatus = x => x.field == _STATUS && x.fromString != x.toString;
+
+    // Return issues that change status
+    Func<Items, bool> expressionSprints = x => x.field == _SPRINT && !string.IsNullOrEmpty(x.toString);
+
     // Return only work days
-    private static int GetWorkingDays(DateTime dateFrom, DateTime dateTo)
+    private int GetWorkingDays(DateTime dateFrom, DateTime dateTo)
     {
         var dayDifference = (int)dateTo.Subtract(dateFrom).TotalDays;
         return Enumerable
@@ -17,15 +23,39 @@ public class FormatterIssuesJira
     }
 
     // Return sprint 
-    private static string? GetSprintsIssues(IOrderedEnumerable<Histories> itemIssuesChangelogHistories)
+    private string? GetSprintsIssues(IOrderedEnumerable<Histories> itemIssuesChangelogHistories)
     {
-        var itemIssuesChangelogHistoriesFiltered = itemIssuesChangelogHistories.Where(x => x.items.Any(x => x.field == _SPRINT && !string.IsNullOrEmpty(x.toString)));
+        var itemIssuesChangelogHistoriesFiltered = itemIssuesChangelogHistories.Where(x => x.items.Any(expressionSprints));
 
         return itemIssuesChangelogHistoriesFiltered.FirstOrDefault()?.items.FirstOrDefault()?.toString;
     }
 
-    // Return issues that change status
-    Func<Items, bool> transictionStatus = x => x.field == _STATUS && x.fromString != x.toString;
+    // Create and build issues histories 
+    private IssuesResultHistories GetIssuesResultHistories(Histories? itemHistories, IEnumerable<Items> itemsStatus, string? dateChangeStatusOld)
+    {
+        // Prepare dates to calculate cycletimes
+        var dateChangeStatus = DateTime.SpecifyKind(Convert.ToDateTime(itemHistories?.created), DateTimeKind.Utc);
+        var dateFrom = !string.IsNullOrEmpty(dateChangeStatusOld) ? Convert.ToDateTime(dateChangeStatusOld) : DateTime.MinValue;
+        var dateTo = Convert.ToDateTime(dateChangeStatus.ToString(_FORMATDATE));
+
+        // Set object to issues history and calculate cycletimes
+        var issuesResultHistories = new IssuesResultHistories
+        {
+            UserKey = itemHistories?.author?.name,
+            UserName = itemHistories?.author?.displayName,
+            DateChangeStatus = dateChangeStatus.ToString(_FORMATDATE),
+            CycleTime = (dateFrom != DateTime.MinValue) ? (int)dateTo.Subtract(dateFrom).TotalDays : 0,
+            CycleTimeWorkDays = (dateFrom != DateTime.MinValue) ? GetWorkingDays(dateFrom, dateTo) : 0
+        };
+
+        foreach (var items in itemsStatus)
+        {
+            issuesResultHistories.FromStatus = items.fromString;
+            issuesResultHistories.ToStatus = items.toString;
+        }
+
+        return issuesResultHistories;
+    }
 
     // Format body return by jira at struct object
     public List<IssuesResult> GetIssuesResult(IssuesJira issuesJira)
@@ -56,35 +86,17 @@ public class FormatterIssuesJira
             foreach (var itemHistories in itemIssuesChangelogHistoriesFiltered)
             {
                 
-                //Get only items with status diff    
+                // Get only items with status diff    
                 var itemsStatus = itemHistories?.items.Where(transictionStatus);
                 if (itemsStatus == null || itemsStatus.Count() == 0)
                     continue;
 
-                // Prepare dates to calculate cycletimes
-                var dateChangeStatus = DateTime.SpecifyKind(Convert.ToDateTime(itemHistories?.created), DateTimeKind.Utc);
-                var dateFrom = !string.IsNullOrEmpty(dateChangeStatusOld) ? Convert.ToDateTime(dateChangeStatusOld) : DateTime.MinValue;
-                var dateTo = Convert.ToDateTime(dateChangeStatus.ToString(_FORMATDATE));
-
-                //Set object to issues history and calculate cycletimes
-                var issuesResultHistories = new IssuesResultHistories
-                {
-                    UserKey = itemHistories?.author?.name,
-                    UserName = itemHistories?.author?.displayName,
-                    DateChangeStatus = dateChangeStatus.ToString(_FORMATDATE),
-                    CycleTime = (dateFrom != DateTime.MinValue) ? (int)dateTo.Subtract(dateFrom).TotalDays : 0,
-                    CycleTimeWorkDays = (dateFrom != DateTime.MinValue) ? GetWorkingDays(dateFrom, dateTo) : 0
-                };
-
-                foreach (var items in itemsStatus)
-                {
-                    issuesResultHistories.FromStatus = items.fromString;
-                    issuesResultHistories.ToStatus = items.toString;
-                }
+                // Create and build issues histories 
+                var issuesResultHistories = GetIssuesResultHistories(itemHistories, itemsStatus, dateChangeStatusOld);
 
                 issuesResult.IssuesResultHistories.Add(issuesResultHistories);
 
-                dateChangeStatusOld = dateChangeStatus.ToString(_FORMATDATE);
+                dateChangeStatusOld = !string.IsNullOrEmpty(issuesResultHistories.DateChangeStatus) ? issuesResultHistories.DateChangeStatus : string.Empty;
 
             }
             issuesResultList.Add(issuesResult);
